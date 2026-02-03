@@ -814,6 +814,35 @@ Robencla <- R6Class("Robencla",
                       self$final_predict(self$test_data)
                   
                       return(invisible(self)) 
+                    },
+                    
+                    
+                    # Add to the Robencla class:
+                    trim = function() {
+                      # Clear top-level data
+                      self$test_data <- NULL
+                      self$train_data <- NULL
+                      self$test_label <- NULL
+                      self$train_label <- NULL
+                      self$test_sample_ids <- NULL
+                      self$train_sample_ids <- NULL
+                      self$pred_table <- NULL
+                      self$call_table <- NULL
+                      
+                      # Clear data from each ensemble member
+                      for (ens_name in names(self$ensbl)) {
+                        ens <- self$ensbl[[ens_name]]
+                        if (!is.null(ens)) {
+                          ens$train_data <- NULL
+                          ens$test_data <- NULL
+                          ens$label <- NULL
+                          ens$pred_table <- NULL
+                          ens$preds <- NULL
+                          ens$pred_combined <- NULL
+                        }
+                      }
+                      
+                      invisible(self)
                     }
                   ) # end public
       )
