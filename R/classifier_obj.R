@@ -114,7 +114,7 @@ Robencla <- R6Class("Robencla",
                     #' Returns the robencla version.
                     #' @return A character string representing the package version.
                     version = function() {
-                      return("0.5.2")
+                      return("0.5.5")
                     },
                     
                     
@@ -122,7 +122,7 @@ Robencla <- R6Class("Robencla",
                     #' Creates a printable representation of the object.
                     #' @return A character string representing the object.
                     greet = function() {
-                      cat(paste0("Hello, my name is ", self$name, ".\n"))
+                      cat(paste0("Hello, this model is named ", self$name, ".\n"))
                     },
                     
                     
@@ -369,7 +369,8 @@ Robencla <- R6Class("Robencla",
                         stop('Test data column names must match what was used in training.')
                       } else {
                         # just subset to the proper columns now
-                        self$test_data
+                        #self$test_data
+                        self$test_data <- self$test_data[, allgenes, with = FALSE]
                       }
 
                       # if we have some columns that have zero variance, fix that
