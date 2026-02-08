@@ -3,36 +3,45 @@
 
 # bin data vectors into 4 levels
 data_bin_4 <- function(x) {
-  p = quantile(x)
-  if (any(table(p) > 1)) {
-    # then we have duplicate levels
-    p <- unique(p)
+  p = quantile(x, na.rm = TRUE)
+  p <- unique(p)  # Remove duplicates first
+  
+  # Need at least 2 unique breaks for cut() to work
+  if (length(p) < 2) {
+    # All values are identical - return all 1s
+    return(rep(1, length(x)))
   }
+  
   as.numeric(cut(x, breaks=p, include.lowest = T))
 }
-
 
 # bin data vectors into 3 levels
 data_bin_3 <- function(x) {
-  p = quantile(x, probs = c(0, 0.33333, 0.66666, 1))
-  if (any(table(p) > 1)) {
-    # then we have duplicate levels
-    p <- unique(p)
+  p = quantile(x, probs = c(0, 0.33333, 0.66666, 1), na.rm = TRUE)
+  p <- unique(p)  # Remove duplicates first
+  
+  # Need at least 2 unique breaks for cut() to work
+  if (length(p) < 2) {
+    # All values are identical - return all 1s
+    return(rep(1, length(x)))
   }
+  
   as.numeric(cut(x, breaks=p, include.lowest = T))
 }
-
 
 # bin data vectors into 2 levels
 data_bin_2 <- function(x) {
-  p = quantile(x, probs = c(0, 0.5, 1))
-  if (any(table(p) > 1)) {
-    # then we have duplicate levels
-    p <- unique(p)
+  p = quantile(x, probs = c(0, 0.5, 1), na.rm = TRUE)
+  p <- unique(p)  # Remove duplicates first
+  
+  # Need at least 2 unique breaks for cut() to work
+  if (length(p) < 2) {
+    # All values are identical - return all 1s
+    return(rep(1, length(x)))
   }
+  
   as.numeric(cut(x, breaks=p, include.lowest = T))
 }
-
 
 #' deng_obj  data engineering object (deng)
 #' 
@@ -93,29 +102,50 @@ Data_eng <- R6Class("Data_eng",
                       stop('No provided feature names in pairs or sigpairs.')
                     }
                     
-                    if ('binary' %in% self$data_mode) {
-                      bindat <- as.data.table(t(apply(data,1,data_bin_2)))
-                      colnames(bindat) <- datcols
-                      bindat <- bindat[, ..allgenes]
-                      colnames(bindat) <- sapply(colnames(bindat), function(a) paste0(a,'_binary',collapse = ''))
-                      newdat <- cbind(newdat, bindat)
-                    } 
-                    
                     if ('tertiles' %in% self$data_mode) {
-                      tertdat <- as.data.table(t(apply(data,1,data_bin_3)))
-                      colnames(tertdat) <- datcols
+                      # Filter to numeric columns only before apply
+                      numeric_cols <- sapply(data, is.numeric)
+                      numeric_col_names <- names(data)[numeric_cols]
+                      numeric_data <- data[, ..numeric_col_names]
+                      
+                      tertdat <- as.data.table(t(apply(numeric_data, 1, data_bin_3)))
+                      
+                      # Use the numeric column names instead of datcols
+                      colnames(tertdat) <- numeric_col_names
                       tertdat <- tertdat[, ..allgenes]
                       colnames(tertdat) <- sapply(colnames(tertdat), function(a) paste0(a,'_tertiles',collapse = ''))
                       newdat <- cbind(newdat, tertdat)
-                    } 
+                    }
                     
                     if ('quartiles' %in% self$data_mode) {
-                      quartdat <- as.data.table(t(apply(data,1,data_bin_4)))
-                      colnames(quartdat) <- datcols
+                      # Filter to numeric columns only before apply
+                      numeric_cols <- sapply(data, is.numeric)
+                      numeric_col_names <- names(data)[numeric_cols]
+                      numeric_data <- data[, ..numeric_col_names]
+                      
+                      quartdat <- as.data.table(t(apply(numeric_data, 1, data_bin_4)))
+                      
+                      # Use the numeric column names instead of datcols
+                      colnames(quartdat) <- numeric_col_names
                       quartdat <- quartdat[, ..allgenes]
-                      colnames(quartdat) <- sapply(colnames(quartdat), function(a) paste0(a,'_quartile',collapse = ''))
+                      colnames(quartdat) <- sapply(colnames(quartdat), function(a) paste0(a,'_quartiles',collapse = ''))
                       newdat <- cbind(newdat, quartdat)
-                    } 
+                    }
+                    
+                    if ('binarize' %in% self$data_mode) {
+                      # Filter to numeric columns only before apply
+                      numeric_cols <- sapply(data, is.numeric)
+                      numeric_col_names <- names(data)[numeric_cols]
+                      numeric_data <- data[, ..numeric_col_names]
+                      
+                      bindat <- as.data.table(t(apply(numeric_data, 1, data_bin_2)))
+                      
+                      # Use the numeric column names instead of datcols
+                      colnames(bindat) <- numeric_col_names
+                      bindat <- bindat[, ..allgenes]
+                      colnames(bindat) <- sapply(colnames(bindat), function(a) paste0(a,'_binary',collapse = ''))
+                      newdat <- cbind(newdat, bindat)
+                    }
 
                     if ('ranks' %in% self$data_mode) {
                       rankdat <- as.data.table(t(apply(data,1,rank)))
@@ -202,15 +232,12 @@ Data_eng <- R6Class("Data_eng",
                           s2 <- gsub(' ', '_', self$signatures[[sn2]])
                           sig_pair_temp <- list()
                           
-                          # each sig is a group to get AUC
-                          sig_group = c( rep.int('a', length(s1)), rep.int('b', length(s2)))
+                          # Find which signature genes are actually in the data
+                          idx <- which(colnames(data) %in% s1)
+                          jdx <- which(colnames(data) %in% s2)
                           
-                          # for each sample si
-                          # sig_pair_temp <- sapply(1:nrow(data), function(si) {
-                          #   val_group <- c( as.numeric(data[si,.SD,.SD=s1]), as.numeric(data[si,.SD,.SD=s2]) )
-                          #   roc_obj <- ROCit::rocit(val_group, sig_group)
-                          #   roc_obj$AUC
-                          # }) 
+                          # Create sig_group based on ACTUAL genes present, not full signature
+                          sig_group = c( rep.int('a', length(idx)), rep.int('b', length(jdx)))
                           
                           ### New sig fun ###
                           compute_roc <- function(sig_group, idx, jdx, a) {
@@ -218,8 +245,7 @@ Data_eng <- R6Class("Data_eng",
                             roc_obj <- ROCit::rocit(val_group, sig_group)
                             return(roc_obj$AUC)
                           }
-                          idx <- which(colnames(data) %in% s1)
-                          jdx <- which(colnames(data) %in% s2)
+                          
                           sig_pair_temp <- apply(data, 1, FUN = function(a) compute_roc(sig_group, idx, jdx, a))
                           ###    ###    ###
                           
